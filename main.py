@@ -89,3 +89,5 @@ class DeepQNetwork:
 
         # Extract the attributes from the sample
         states, actions, rewards, next_states, done_list = self.get_attributes_from_sample(random_sample)
+
+        targets = rewards
