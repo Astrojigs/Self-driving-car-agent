@@ -10,6 +10,7 @@ class DeepQNetwork:
         # Variables
         self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
+        self.epsilon_min = 0.01
         self.gamma = gamma
         self.counter = 0
         self.rewards_list = []
@@ -95,10 +96,10 @@ class DeepQNetwork:
         # targets.shape = (64, 3)
 
         target_vec = self.model.predict_on_batch(states)
-        print(f'target_vec = {target_vec.shape}')
+        # print(f'target_vec = {target_vec.shape}')
         indexes = np.array([i for i in range(self.batch_size)])
 
-        target_vec[[indexes],[actions]] = targets
+        target_vec = targets
 
         self.model.fit(states, target_vec, epochs=1, verbose=0)
 
@@ -108,12 +109,13 @@ class DeepQNetwork:
             state = self.env.reset()
 
             reward_for_episode = 0
-            num_steps = 1000
+            num_steps = 5000
             print(state.shape)
             state = state.reshape((1,) + self.num_observation_space)
 
             #what to do in every step
             for step in range(num_steps):
+                print(step)
                 # Get the action
                 received_action = self.get_action(state)
 
@@ -151,9 +153,7 @@ class DeepQNetwork:
                 print("DQN Training Complete...")
                 break
 
-            # Saving the Model
-            self.model.save('LL1_model.h5', overwrite=True)
-
+            self.model.save('Cardriver.h5', overwrite=True)
             print(f"Episode: {episode} \n Reward: {reward_for_episode} \n Average Reward: {last_reward_mean} \n Epsilon: {self.epsilon}")
 
     def save(self, name):
