@@ -12,19 +12,20 @@ class DeepQNetwork:
         self.epsilon_decay = epsilon_decay
         self.gamma = gamma
         self.counter = 0
+        self.rewards_list = []
         # Learning rate
         self.lr = lr
 
         self.env = env
         # Action space
         self.action_space = self.env.action_space
-        self.num_action_space = self.action_space.n
+        self.num_action_space = self.action_space.shape
         # Observation space
         self.observation_space = self.env.observation_space
         self.num_observation_space = self.observation_space.shape # = (96, 96, 3)
 
         #Important things
-        replay_buffer = deque(maxlen=500000)
+        self.replay_buffer = deque(maxlen=500000)
         self.batch_size = 64
 
         self.model = self.initialize_model()
@@ -50,7 +51,7 @@ class DeepQNetwork:
 
     def get_action(self, state):
         # Epsilon greedy policy
-        if random.randrange(self.num_action_space) > self.epsilon:
+        if random.randrange(1) > self.epsilon:
             # Use action recieved from the Model
             print(f"From 'get_action()' method || model.predict(states).numpy() = {self.model.predict(state).numpy()} \n should be [x y z] shape")
             return self.model.predict(state).numpy()
@@ -90,4 +91,82 @@ class DeepQNetwork:
         # Extract the attributes from the sample
         states, actions, rewards, next_states, done_list = self.get_attributes_from_sample(random_sample)
 
-        targets = rewards
+        targets = np.tile(rewards, (self.action_space.sample().size, 1)).transpose() + (self.gamma * self.model.predict_on_batch(next_states)) * (1 - done_list)[:, None]
+        # targets.shape = (64, 3)
+
+        target_vec = self.model.predict_on_batch(states)
+        print(f'target_vec = {target_vec.shape}')
+        indexes = np.array([i for i in range(self.batch_size)])
+
+        target_vec[[indexes],[actions]] = targets
+
+        self.model.fit(states, target_vec, epochs=1, verbose=0)
+
+    def learn(self, num_episodes = 2000):
+        for episode in range(num_episodes):
+            #reset the environment
+            state = self.env.reset()
+
+            reward_for_episode = 0
+            num_steps = 1000
+            print(state.shape)
+            state = state.reshape((1,) + self.num_observation_space)
+
+            #what to do in every step
+            for step in range(num_steps):
+                # Get the action
+                received_action = self.get_action(state)
+
+                # Implement the action and the the next_states and rewards
+                next_state, reward, done, info = env.step(received_action)
+
+                # Render the actions
+                self.env.render()
+
+                # Reshape the next_state and put it in replay buffer
+                next_state = next_state.reshape((1,) + self.num_observation_space)
+                # Store the experience in replay_buffer
+                self.add_to_replay_buffer(state, received_action, reward, next_state, done)
+
+                # Add rewards
+                reward_for_episode+=reward
+                # Change the state
+                state = next_state
+
+                # Update the model
+                self.update_counter()
+                self.update_model()
+
+                if done:
+                    break
+
+            self.rewards_list.append(reward_for_episode)
+
+            # Decay the epsilon after each completion
+            if self.epsilon > self.epsilon_min:
+                self.epsilon *= self.epsilon_decay
+
+            last_reward_mean = np.mean(self.rewards_list[-100:])
+            if last_reward_mean > 200:
+                print("DQN Training Complete...")
+                break
+
+            # Saving the Model
+            self.model.save('LL1_model.h5', overwrite=True)
+
+            print(f"Episode: {episode} \n Reward: {reward_for_episode} \n Average Reward: {last_reward_mean} \n Epsilon: {self.epsilon}")
+
+    def save(self, name):
+        self.model.save(name)
+
+if __name__ == '__main__':
+    env = gym.make('CarRacing-v0')
+    lr = 0.001
+    epsilon = 1.0
+    epsilon_decay = 0.995
+    gamma = 0.99
+    training_episodes = 2000
+
+    '''Use this when training model'''
+    model = DeepQNetwork(env, epsilon,gamma,lr, epsilon_decay)
+    model.learn(training_episodes)
