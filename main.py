@@ -26,7 +26,7 @@ class DeepQNetwork:
         self.num_observation_space = self.observation_space.shape # = (96, 96, 3)
 
         #Important things
-        self.replay_buffer = deque(maxlen=500000)
+        self.replay_buffer = deque(maxlen=1000000)
         self.batch_size = 64
 
         self.model = self.initialize_model()
@@ -43,6 +43,7 @@ class DeepQNetwork:
 
         # Output
         output_layer = tf.keras.layers.Dense(3, activation=tf.keras.activations.linear)(dense_layer)
+        # If linear activation function does not work then try tanh which will make the o/p vary from -1 to 1
 
         model = tf.keras.Model(inputs=[input_layer], outputs = [output_layer])
 
@@ -52,10 +53,10 @@ class DeepQNetwork:
 
     def get_action(self, state):
         # Epsilon greedy policy
-        if random.randrange(1) > self.epsilon:
+        if np.random.rand() > self.epsilon:
             # Use action recieved from the Model
-            print(f"From 'get_action()' method || model.predict(states).numpy() = {self.model.predict(state).numpy()} \n should be [x y z] shape")
-            return self.model.predict(state).numpy()
+            print(f"From 'get_action()' method || model.predict(states).numpy() = {self.model.predict(state)} \n should be [x y z] shape")
+            return self.model.predict(state)[0]
 
         else:
             # return a random action_space
@@ -110,7 +111,7 @@ class DeepQNetwork:
 
             reward_for_episode = 0
             num_steps = 5000
-            print(state.shape)
+            # print(state.shape) = (96, 96, 3)
             state = state.reshape((1,) + self.num_observation_space)
 
             #what to do in every step
@@ -118,6 +119,7 @@ class DeepQNetwork:
                 print(step)
                 # Get the action
                 received_action = self.get_action(state)
+                # print(received_action) = [0.2579827  0.8255989  0.21661848]
 
                 # Implement the action and the the next_states and rewards
                 next_state, reward, done, info = env.step(received_action)
@@ -153,7 +155,7 @@ class DeepQNetwork:
                 print("DQN Training Complete...")
                 break
 
-            self.model.save('Cardriver.h5', overwrite=True)
+            # self.model.save('Cardriver.h5', overwrite=True)
             print(f"Episode: {episode} \n Reward: {reward_for_episode} \n Average Reward: {last_reward_mean} \n Epsilon: {self.epsilon}")
 
     def save(self, name):
@@ -168,5 +170,7 @@ if __name__ == '__main__':
     training_episodes = 2000
 
     '''Use this when training model'''
-    model = DeepQNetwork(env, epsilon,gamma,lr, epsilon_decay)
+    model = DeepQNetwork(env, lr, epsilon, gamma, epsilon_decay)
     model.learn(training_episodes)
+
+    model.save('Cardriver.h5', overwrite=True)
