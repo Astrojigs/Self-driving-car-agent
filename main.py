@@ -38,14 +38,18 @@ class DeepQNetwork:
 
         third_layer = tf.keras.layers.Conv2D(filters=128, kernel_size=(2,2), strides=(2,2),
                                                 activation='relu', padding='same')(middle_layer) #(24, 24, 128)
-        flatten = tf.keras.layers.Flatten()(third_layer)
-        dense_layer = tf.keras.layers.Dense(256,activation='relu')(flatten)
+        fourth_layer = tf.keras.layers.Conv2D(filters=128, kernel_size=(4,4), strides=(4,4),
+                                                activation='relu', padding='same')(third_layer) #(6, 6, 128)
+        flatten = tf.keras.layers.Flatten()(fourth_layer)
+        dense_layer = tf.keras.layers.Dense(512, activation='relu')(flatten)
+        dense_layer2 = tf.keras.layers.Dense(256, activation='relu')(dense_layer)
 
         # Output
-        output_layer = tf.keras.layers.Dense(3, activation=tf.keras.activations.linear)(dense_layer)
+        output_layer = tf.keras.layers.Dense(self.action_space.sample().size,
+                                             activation=tf.keras.activations.linear)(dense_layer2)
         # If linear activation function does not work then try tanh which will make the o/p vary from -1 to 1
 
-        model = tf.keras.Model(inputs=[input_layer], outputs = [output_layer])
+        model = tf.keras.Model(inputs = [input_layer], outputs = [output_layer])
 
         model.compile(tf.keras.optimizers.Adam(lr=self.lr), loss='mse')
 
