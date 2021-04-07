@@ -46,7 +46,7 @@ class DeepQNetwork:
 
         # Output
         output_layer = tf.keras.layers.Dense(self.action_space.sample().size,
-                                             activation=tf.keras.activations.linear)(dense_layer2)
+                                             activation=tf.keras.activations.tanh)(dense_layer2)
         # If linear activation function does not work then try tanh which will make the o/p vary from -1 to 1
 
         model = tf.keras.Model(inputs = [input_layer], outputs = [output_layer])
@@ -59,8 +59,28 @@ class DeepQNetwork:
         # Epsilon greedy policy
         if np.random.rand() > self.epsilon:
             # Use action recieved from the Model
-            print(f"From 'get_action()' method || model.predict(states).numpy() = {self.model.predict(state)} \n should be [x y z] shape")
-            return self.model.predict(state)[0]
+            predicted_action = self.model.predict(state)[0]
+            print(f'from get_action() || predicted action = {predicted_action}')
+            # Discretization of actions:
+            action = np.random.randint(-1, 1, (3,))
+            # For turning right:
+            if 0 < predicted_action[0] <= 1:
+                action[0] = 1
+            else:
+                action[0] = -1
+
+            # For throttling:
+            if 0.5 < predicted_action[1] <= 1:
+                action[1] = 1
+            else:
+                action[1] = 0
+            # For braking
+            if 0.5 < predicted_action[2] <=1:
+                action[2] = 0.8
+            else:
+                action[2] = 0
+            print(f'discretized action = {action}')
+            return action
 
         else:
             # return a random action_space
@@ -97,7 +117,7 @@ class DeepQNetwork:
         # Extract the attributes from the sample
         states, actions, rewards, next_states, done_list = self.get_attributes_from_sample(random_sample)
 
-        targets = np.tile(rewards, (self.action_space.sample().size, 1)).transpose() + (self.gamma * self.model.predict_on_batch(next_states)) * (1 - done_list)[:, None]
+        targets = np.tile(rewards, (self.action_space.sample().size, 1)).transpose() + np.multiply(np.multiply(self.gamma, self.model.predict_on_batch(next_states)), np.tile((1 - done_list), (self.action_space.sample().size, 1)).transpose())
         # targets.shape = (64, 3)
 
         target_vec = self.model.predict_on_batch(states)
@@ -114,13 +134,12 @@ class DeepQNetwork:
             state = self.env.reset()
 
             reward_for_episode = 0
-            num_steps = 5000
+            num_steps = 1000
             # print(state.shape) = (96, 96, 3)
             state = state.reshape((1,) + self.num_observation_space)
 
             #what to do in every step
             for step in range(num_steps):
-                print(step)
                 # Get the action
                 received_action = self.get_action(state)
                 # print(received_action) = [0.2579827  0.8255989  0.21661848]

@@ -12,4 +12,4 @@ obs = env.reset()
 for i in range(100):
 
     obs, reward, done, info = env.step(env.action_space.sample())
-    print(env.action_space.sample().size)
+    print(env.action_space.sample())
