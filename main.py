@@ -45,13 +45,13 @@ class DeepQNetwork:
         dense_layer2 = tf.keras.layers.Dense(256, activation='relu')(dense_layer)
 
         # Output
-        output_layer = tf.keras.layers.Dense(self.action_space.sample().size,
-                                             activation=tf.keras.activations.linear)(dense_layer2)
-        # If linear activation function does not work then try tanh which will make the o/p vary from -1 to 1
+        output_layer = tf.keras.layers.Dense(4,
+                                             activation=tf.keras.activations.softmax)(dense_layer2)
+        # o/p = [L R A B]
 
         model = tf.keras.Model(inputs = [input_layer], outputs = [output_layer])
 
-        model.compile(tf.keras.optimizers.Adam(lr=self.lr), loss='mse')
+        model.compile(tf.keras.optimizers.Adam(lr=self.lr), loss='categorical_crossentropy')
 
         model.summary()
 
@@ -60,29 +60,31 @@ class DeepQNetwork:
     def get_action(self, state):
         # Epsilon greedy policy
         if np.random.rand() > self.epsilon:
-            # Use action recieved from the Model
-            predicted_action = self.model.predict(state)[0]
-            print(f'from get_action() || predicted action = {predicted_action}')
-            # Discretization of actions:
-            action = np.random.randint(-1, 1, (3,))
-            # For turning right:
-            if 0 < predicted_action[0] <= 1:
-                action[0] = 1
-            else:
-                action[0] = -1
+            # Define the action
+            action = np.zeros((self.action_space.sample().size,))
+            print(f"Debug code: get_action() ||| action before assignment = {action}")
+            action_proba = self.model.predict(state)
+            print(f"action probabilities received from the model = action_proba = {action_proba}")
 
-            # For throttling:
-            if 0.5 < predicted_action[1] <= 1:
-                action[1] = 1
-            else:
-                action[1] = 0
-            # For braking
-            if 0.5 < predicted_action[2] <=1:
+            # Turn left
+            if action_proba[0] == np.max(action_proba):
+                action[0] = -1
+            # Turn Right
+            elif action_proba[1] == np.max(action_proba):
+                action[0] = +1
+                # Accelerate
+            elif action_proba[2] == np.max(action_proba):
+                action[1] = +1
+            # Brake
+            elif action_proba[3] == np.max(action_proba):
                 action[2] = 0.8
-            else:
-                action[2] = 0
-            print(f'discretized action = {action}')
+
             return action
+            else:
+                return np.zeros((3,))
+
+
+
 
         else:
             # return a random action_space
@@ -119,10 +121,11 @@ class DeepQNetwork:
         # Extract the attributes from the sample
         states, actions, rewards, next_states, done_list = self.get_attributes_from_sample(random_sample)
 
-        targets = np.tile(rewards, (self.action_space.sample().size, 1)).transpose() + np.multiply(np.multiply(self.gamma, self.model.predict_on_batch(next_states)), np.tile((1 - done_list), (self.action_space.sample().size, 1)).transpose())
+        targets = rewards + self.gamma * self.model.predict_on_batch(next_states) * (1 - done_list)
         # targets.shape = (64, 3)
 
         target_vec = self.model.predict_on_batch(states)
+        # target_vec = [L R A B]
         # print(f'target_vec = {target_vec.shape}')
         indexes = np.array([i for i in range(self.batch_size)])
 
