@@ -62,9 +62,11 @@ class DeepQNetwork:
         if np.random.rand() > self.epsilon:
             # Define the action
             action = np.zeros((self.action_space.sample().size,))
-            print(f"Debug code: get_action() ||| action before assignment = {action}")
-            action_proba = self.model.predict(state)
-            print(f"action probabilities received from the model = action_proba = {action_proba}")
+            # print(f"Debug code: get_action() ||| action before assignment = {action}")
+
+            # Receiving the probabilities from the model
+            action_proba = self.model.predict(state)[0]
+            # print(f"action probabilities received from the model = action_proba = {action_proba}")
 
             # Turn left
             if action_proba[0] == np.max(action_proba):
@@ -79,10 +81,11 @@ class DeepQNetwork:
             elif action_proba[3] == np.max(action_proba):
                 action[2] = 0.8
 
-            return action
+                # print(f"Assigned action = {action}")
             else:
                 return np.zeros((3,))
 
+            return action
 
 
 
@@ -106,6 +109,41 @@ class DeepQNetwork:
         done_list = np.array([i[4] for i in sample])
         return states, actions, rewards, next_states, done_list
 
+    def discretize_action(self, action):
+        # received actions will be batch_size*[s a b]
+        '''steer left if s < -0.5:
+        steer right if s> +0.5
+        accelerate if a>0.5
+        brake if b>0.5'''
+        discrete_action = np.zeros((4,))
+
+        # Steering
+        if action[0] < -0.5:
+            # Steer left
+            discrete_action[0] = 1
+        else:
+            discrete_action[0] = 0
+
+        if action[0] > 0.5:
+            # Steer right
+            discrete_action[1] = +1
+        else:
+            discrete_action[1] = 0
+
+        # Accelerate
+        if action[1] > 0.5:
+            discrete_action[2] = +1
+        else:
+            discrete_action[2] = 0
+
+
+        # Brake
+        if action[2] > 0.5:
+            discrete_action[3] = 0.8
+        else:
+            discrete_action[3] = 0
+        # print(f"from discrete_action() ||| discrete_action = {discrete_action}") = [0.  1.  1.  0.8]
+        return discrete_action
     def update_model(self):
         #replay_buffer size check
         if len(self.replay_buffer) < self.batch_size or self.counter != 0:
@@ -120,17 +158,24 @@ class DeepQNetwork:
 
         # Extract the attributes from the sample
         states, actions, rewards, next_states, done_list = self.get_attributes_from_sample(random_sample)
+        targets = rewards + self.gamma * np.argmax(self.model.predict_on_batch(next_states), axis=1) * (1 - done_list)
+        # print(targets.shape) # = (64,)
 
-        targets = rewards + self.gamma * self.model.predict_on_batch(next_states) * (1 - done_list)
-        # targets.shape = (64, 3)
-
+        # Discretize the action
+        discretized_actions = np.random.randint(0,1,(self.batch_size, 4))
+        for i in range(self.batch_size):
+            discretized_actions[i] = self.discretize_action(actions[i])
+        # print(discretized_actions.shape) = (64, 4)
         target_vec = self.model.predict_on_batch(states)
+        # print(f"target_vec.shape = {target_vec.shape}") = (64, 4)
         # target_vec = [L R A B]
         # print(f'target_vec = {target_vec.shape}')
         indexes = np.array([i for i in range(self.batch_size)])
+        # replace maximum value of target_vec with the target value
+        target_vec[[indexes], [np.argmax(discretized_actions, axis=1)]] = targets
+        # print(target_vec)
 
-        target_vec = targets
-
+        '''The problem is that the target_vec uses the actions [s a b] and I've '''
         self.model.fit(states, target_vec, epochs=1, verbose=0)
 
     def learn(self, num_episodes = 2000):
