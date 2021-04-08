@@ -31,6 +31,11 @@ class DeepQNetwork:
 
         self.model = self.initialize_model()
 
+    def normalize_obs(self, state):
+        if 100<np.max(state)<=255:
+            return state/np.max(state)
+        return state
+
     def initialize_model(self):
         input_layer = tf.keras.layers.Input(shape=self.num_observation_space) #(96, 96, 3)
         middle_layer = tf.keras.layers.Conv2D(filters=64, kernel_size=(2,2), strides=(2,2),
@@ -59,14 +64,15 @@ class DeepQNetwork:
 
     def get_action(self, state):
         # Epsilon greedy policy
+        state = self.normalize_obs(state)
+
         if np.random.rand() > self.epsilon:
             # Define the action
             action = np.zeros((self.action_space.sample().size,))
             # print(f"Debug code: get_action() ||| action before assignment = {action}")
-
             # Receiving the probabilities from the model
             action_proba = self.model.predict(state)[0]
-            # print(f"action probabilities received from the model = action_proba = {action_proba}")
+            print(f"action probabilities received from the model = action_proba = {action_proba}")
 
             # Turn left
             if action_proba[0] == np.max(action_proba):
@@ -162,7 +168,7 @@ class DeepQNetwork:
         # print(targets.shape) # = (64,)
 
         # Discretize the action
-        discretized_actions = np.random.randint(0,1,(self.batch_size, 4))
+        discretized_actions = np.random.randint(0, 1, (self.batch_size, 4))
         for i in range(self.batch_size):
             discretized_actions[i] = self.discretize_action(actions[i])
         # print(discretized_actions.shape) = (64, 4)
@@ -182,7 +188,7 @@ class DeepQNetwork:
         for episode in range(num_episodes):
             #reset the environment
             state = self.env.reset()
-
+            self.normalize_obs(state)
             reward_for_episode = 0
             num_steps = 1000
             # print(state.shape) = (96, 96, 3)
@@ -197,6 +203,7 @@ class DeepQNetwork:
                 # Implement the action and the the next_states and rewards
                 next_state, reward, done, info = env.step(received_action)
 
+                self.normalize_obs(next_state)
                 # Render the actions
                 self.env.render()
 
